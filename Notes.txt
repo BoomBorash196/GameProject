@@ -1,0 +1,604 @@
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Content;
+using System;
+using System.Collections.Generic;
+
+namespace GameProject
+{
+    public class Game1 : Game
+    {
+        private GraphicsDeviceManager _graphics;
+        private SpriteBatch _spriteBatch;
+
+        // Параметры карты
+        private int[,] map = new int[,]
+    {
+        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 2, 0, 0, 0, 0, 0, 3, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    };
+
+        // Параметры игрока
+        private double posX = 5.0, posY = 4.0; // Позиция игрока
+        private double dirX = -1.0, dirY = 0.0; // Направление взгляда
+        private double planeX = 0.0, planeY = 0.66; // Плоскость камеры
+
+        // Параметры мыши
+        private float mouseSensitivity = 0.002f;
+        private MouseState prevMouseState;
+
+        // Текстуры
+        private Texture2D pixel;
+        private Color[] wallTextureData;
+        private List<TextureData> wallTextures;
+
+        public class TextureData
+        {
+            public Texture2D Texture { get; set; }
+            public Color[] Data { get; set; }
+        }
+
+        // Размеры экрана
+        private int screenWidth = 1600;
+        private int screenHeight = 900;
+
+        public Game1()
+        {
+            _graphics = new GraphicsDeviceManager(this);
+            _graphics.IsFullScreen = false;
+            Content.RootDirectory = "Content";
+            IsMouseVisible = false;
+        }
+
+        protected override void Initialize()
+        {
+            Mouse.SetPosition(
+                GraphicsDevice.Viewport.Width / 2,
+                GraphicsDevice.Viewport.Height / 2
+            );
+            prevMouseState = Mouse.GetState();
+
+            _graphics.PreferredBackBufferWidth = screenWidth;
+            _graphics.PreferredBackBufferHeight = screenHeight;
+
+            _graphics.ApplyChanges();
+            base.Initialize();
+        }
+
+        protected override void LoadContent()
+        {
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
+            pixel = new Texture2D(GraphicsDevice, 1, 1);
+            pixel.SetData(new[] { Color.White });
+
+            wallTextures = new List<TextureData>
+            {
+                LoadTextureData("eagle"),
+                LoadTextureData("mossy"),
+                LoadTextureData("redbrick"),
+            };
+
+
+        }
+
+        protected override void Update(GameTime gameTime)
+        {
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+                Exit();
+
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            UpdateCamera(deltaTime);
+
+            base.Update(gameTime);
+        }
+
+        protected override void Draw(GameTime gameTime)
+        {
+            GraphicsDevice.Clear(Color.DarkRed);
+
+            // Вызов метода отрисовки стен
+            DrawWalls();
+
+            base.Draw(gameTime);
+        }
+
+        private void UpdateCamera(float deltaTime)
+        {
+            float moveSpeed = 5.0f * deltaTime;
+            MouseState currentMouseState = Mouse.GetState();
+
+            // Инвертированный поворот мыши
+            int deltaX = currentMouseState.X - prevMouseState.X;
+            double rotation = -deltaX * mouseSensitivity;
+
+            // Обновляем направление взгляда
+            double oldDirX = dirX;
+            dirX = dirX * Math.Cos(rotation) - dirY * Math.Sin(rotation);
+            dirY = oldDirX * Math.Sin(rotation) + dirY * Math.Cos(rotation);
+
+            // Обновляем плоскость камеры
+            double oldPlaneX = planeX;
+            planeX = planeX * Math.Cos(rotation) - planeY * Math.Sin(rotation);
+            planeY = oldPlaneX * Math.Sin(rotation) + planeY * Math.Cos(rotation);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.W))
+            {
+                posX += dirX * moveSpeed;
+                posY += dirY * moveSpeed;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.S))
+            {
+                posX -= dirX * moveSpeed;
+                posY -= dirY * moveSpeed;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.A))
+            {
+                posX -= dirY * moveSpeed;
+                posY += dirX * moveSpeed;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.D))
+            {
+                posX += dirY * moveSpeed;
+                posY -= dirX * moveSpeed;
+            }
+
+
+
+
+            Mouse.SetPosition(
+                GraphicsDevice.Viewport.Width / 2,
+                GraphicsDevice.Viewport.Height / 2
+            );
+            prevMouseState = Mouse.GetState();
+        }
+
+        private void DrawWalls()
+        {
+            _spriteBatch.Begin();
+
+            for (int x = 0; x < screenWidth; x++)
+            {
+                double cameraX = 2 * x / (double)screenWidth - 1;
+                double rayDirX = dirX + planeX * cameraX;
+                double rayDirY = dirY + planeY * cameraX;
+
+                int mapX = (int)posX;
+                int mapY = (int)posY;
+
+                double sideDistX, sideDistY;
+                double deltaDistX = Math.Abs(1 / rayDirX);
+                double deltaDistY = Math.Abs(1 / rayDirY);
+                double perpWallDist;
+
+                int stepX, stepY;
+                bool hit = false;
+                int side = 0;
+
+                // Вычисляем начальные расстояния
+                if (rayDirX < 0)
+                {
+                    stepX = -1;
+                    sideDistX = (posX - mapX) * deltaDistX;
+                }
+                else
+                {
+                    stepX = 1;
+                    sideDistX = (mapX + 1 - posX) * deltaDistX;
+                }
+
+                if (rayDirY < 0)
+                {
+                    stepY = -1;
+                    sideDistY = (posY - mapY) * deltaDistY;
+                }
+                else
+                {
+                    stepY = 1;
+                    sideDistY = (mapY + 1 - posY) * deltaDistY;
+                }
+
+                // Алгоритм DDA
+                while (!hit)
+                {
+                    if (sideDistX < sideDistY)
+                    {
+                        sideDistX += deltaDistX;
+                        mapX += stepX;
+                        side = 0;
+                    }
+                    else
+                    {
+                        sideDistY += deltaDistY;
+                        mapY += stepY;
+                        side = 1;
+                    }
+                    if (map[mapX, mapY] > 0) hit = true;
+                }
+
+                // Определяем расстояние до стены
+                perpWallDist = side == 0
+                    ? (mapX - posX + (1 - stepX) / 2) / rayDirX
+                    : (mapY - posY + (1 - stepY) / 2) / rayDirY;
+
+                // Определяем высоту столбца стены
+                int lineHeight = (int)(screenHeight / perpWallDist);
+                int drawStart = Math.Max(-lineHeight / 2 + screenHeight / 2, 0);
+                int drawEnd = Math.Min(lineHeight / 2 + screenHeight / 2, screenHeight - 1);
+
+                // Получаем значение текстуры из карты
+                int texNum = map[mapX, mapY] - 1;
+                if (texNum < 0 || texNum >= wallTextures.Count) continue;
+
+                // Вычисляем позицию текстуры
+                double wallX = side == 0
+                    ? posY + perpWallDist * rayDirY
+                    : posX + perpWallDist * rayDirX;
+                wallX -= Math.Floor(wallX);
+
+                int texWidth = wallTextures[texNum].Texture.Width;
+                int texHeight = wallTextures[texNum].Texture.Height;
+                int texX = (int)(wallX * texWidth);
+                if ((side == 0 && rayDirX > 0) || (side == 1 && rayDirY < 0))
+                    texX = texWidth - texX - 1;
+
+                // Отрисовка текстурированного столбца
+                for (int y = drawStart; y < drawEnd; y++)
+                {
+                    int d = y * 256 - screenHeight * 128 + lineHeight * 128;
+                    int texY = ((d * texHeight) / lineHeight) / 256;
+                    Color color = wallTextures[texNum].Data[texX + texY * texWidth];
+                    _spriteBatch.Draw(pixel, new Rectangle(x, y, 1, 1), color);
+                }
+            }
+
+            _spriteBatch.End();
+        }
+
+        private TextureData LoadTextureData(string textureName)
+        {
+            Texture2D texture = Content.Load<Texture2D>(textureName);
+            Color[] data = new Color[texture.Width * texture.Height];
+            texture.GetData(data);
+            return new TextureData { Texture = texture, Data = data };
+        }
+
+    }
+}
+
+
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Content;
+using System;
+using System.Collections.Generic;
+
+namespace GameProject
+{
+    public class Game1 : Game
+    {
+        private GraphicsDeviceManager _graphics;
+        private SpriteBatch _spriteBatch;
+
+        // Параметры карты
+        private int[,] map = new int[,]
+    {
+        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 2, 0, 0, 0, 0, 0, 3, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 1},
+        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    };
+
+        // Параметры игрока
+        private double posX = 5.0, posY = 4.0; // Позиция игрока
+        private double dirX = -1.0, dirY = 0.0; // Направление взгляда
+        private double planeX = 0.0, planeY = 0.66; // Плоскость камеры
+
+        // Параметры мыши
+        private float mouseSensitivity = 0.002f;
+        private MouseState prevMouseState;
+
+        // Текстуры
+        private Texture2D pixel;
+        private Color[] wallTextureData;
+        private List<TextureData> wallTextures;
+        private const double CollisionBuffer = 0.3; 
+
+        public class TextureData
+        {
+            public Texture2D Texture { get; set; }
+            public Color[] Data { get; set; }
+        }
+
+        // Размеры экрана
+        private int screenWidth = 1280;
+        private int screenHeight = 720;
+
+        public Game1()
+        {
+            _graphics = new GraphicsDeviceManager(this);
+            _graphics.IsFullScreen = true;
+            Content.RootDirectory = "Content";
+            IsMouseVisible = false;
+        }
+
+        protected override void Initialize()
+        {
+            Mouse.SetPosition(
+                GraphicsDevice.Viewport.Width / 2,
+                GraphicsDevice.Viewport.Height / 2
+            );
+            prevMouseState = Mouse.GetState();
+
+            _graphics.PreferredBackBufferWidth = screenWidth;
+            _graphics.PreferredBackBufferHeight = screenHeight;
+
+            _graphics.ApplyChanges();
+            base.Initialize();
+        }
+
+        protected override void LoadContent()
+        {
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
+            pixel = new Texture2D(GraphicsDevice, 1, 1);
+            pixel.SetData(new[] { Color.White });
+
+            wallTextures = new List<TextureData>
+            {
+                LoadTextureData("eagle"),
+                LoadTextureData("mossy"),
+                LoadTextureData("redbrick"),
+                LoadTextureData("greenlight"),
+            };
+
+
+        }
+
+        protected override void Update(GameTime gameTime)
+        {
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+                Exit();
+
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            UpdateCamera(deltaTime);
+
+            base.Update(gameTime);
+        }
+
+        protected override void Draw(GameTime gameTime)
+        {
+            GraphicsDevice.Clear(Color.Black);
+
+            // Вызов метода отрисовки стен
+            DrawWalls();
+
+            base.Draw(gameTime);
+        }
+
+        private void UpdateCamera(float deltaTime)
+        {
+            float moveSpeed = 5.0f * deltaTime;
+            MouseState currentMouseState = Mouse.GetState();
+
+            // Поворот камеры
+            int deltaX = currentMouseState.X - prevMouseState.X;
+            double rotation = -deltaX * mouseSensitivity; // Добавлен минус!
+
+            // Обновление направления взгляда
+            double oldDirX = dirX;
+            dirX = dirX * Math.Cos(rotation) - dirY * Math.Sin(rotation);
+            dirY = oldDirX * Math.Sin(rotation) + dirY * Math.Cos(rotation);
+
+            // Обновление плоскости камеры
+            double oldPlaneX = planeX;
+            planeX = planeX * Math.Cos(rotation) - planeY * Math.Sin(rotation);
+            planeY = oldPlaneX * Math.Sin(rotation) + planeY * Math.Cos(rotation);
+
+            // Обработка движения с коллизиями
+            double newPosX = posX;
+            double newPosY = posY;
+
+            if (Keyboard.GetState().IsKeyDown(Keys.W))
+            {
+                newPosX += dirX * moveSpeed;
+                newPosY += dirY * moveSpeed;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.S))
+            {
+                newPosX -= dirX * moveSpeed;
+                newPosY -= dirY * moveSpeed;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.A))
+            {
+                newPosX -= dirY * moveSpeed;
+                newPosY += dirX * moveSpeed;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.D))
+            {
+                newPosX += dirY * moveSpeed;
+                newPosY -= dirX * moveSpeed;
+            }
+
+            // Проверка коллизий для новой позиции
+            bool collideX = false;
+            bool collideY = false;
+
+            // Проверяем 4 точки вокруг игрока с буфером
+            for (double i = -CollisionBuffer; i <= CollisionBuffer; i += CollisionBuffer)
+            {
+                for (double j = -CollisionBuffer; j <= CollisionBuffer; j += CollisionBuffer)
+                {
+                    // Проверка по X
+                    int checkX = (int)(newPosX + i);
+                    int checkY = (int)(posY + j);
+                    if (checkX >= 0 && checkX < map.GetLength(0) &&
+                        checkY >= 0 && checkY < map.GetLength(1))
+                    {
+                        if (map[checkX, checkY] > 0) collideX = true;
+                    }
+
+                    // Проверка по Y
+                    checkX = (int)(posX + i);
+                    checkY = (int)(newPosY + j);
+                    if (checkX >= 0 && checkX < map.GetLength(0) &&
+                        checkY >= 0 && checkY < map.GetLength(1))
+                    {
+                        if (map[checkX, checkY] > 0) collideY = true;
+                    }
+                }
+            }
+
+            // Обновляем позицию только если нет коллизий
+            if (!collideX) posX = newPosX;
+            if (!collideY) posY = newPosY;
+
+            // Сброс позиции мыши
+            Mouse.SetPosition(screenWidth / 2, screenHeight / 2);
+            prevMouseState = Mouse.GetState();
+        }
+
+        private void DrawWalls()
+        {
+            _spriteBatch.Begin();
+
+            for (int x = 0; x < screenWidth; x++)
+            {
+                double cameraX = 2 * x / (double)screenWidth - 1;
+                double rayDirX = dirX + planeX * cameraX;
+                double rayDirY = dirY + planeY * cameraX;
+
+                int mapX = (int)posX;
+                int mapY = (int)posY;
+
+                double sideDistX, sideDistY;
+                double deltaDistX = Math.Abs(1 / rayDirX);
+                double deltaDistY = Math.Abs(1 / rayDirY);
+                double perpWallDist;
+
+                int stepX, stepY;
+                bool hit = false;
+                int side = 0;
+
+                // Вычисляем начальные расстояния
+                if (rayDirX < 0)
+                {
+                    stepX = -1;
+                    sideDistX = (posX - mapX) * deltaDistX;
+                }
+                else
+                {
+                    stepX = 1;
+                    sideDistX = (mapX + 1 - posX) * deltaDistX;
+                }
+
+                if (rayDirY < 0)
+                {
+                    stepY = -1;
+                    sideDistY = (posY - mapY) * deltaDistY;
+                }
+                else
+                {
+                    stepY = 1;
+                    sideDistY = (mapY + 1 - posY) * deltaDistY;
+                }
+
+                // Алгоритм DDA
+                while (!hit)
+                {
+                    if (sideDistX < sideDistY)
+                    {
+                        sideDistX += deltaDistX;
+                        mapX += stepX;
+                        side = 0;
+                    }
+                    else
+                    {
+                        sideDistY += deltaDistY;
+                        mapY += stepY;
+                        side = 1;
+                    }
+                    if (map[mapX, mapY] > 0) 
+                        hit = true;
+                }
+
+                // Определяем расстояние до стены
+                perpWallDist = side == 0
+                    ? (mapX - posX + (1 - stepX) / 2) / rayDirX
+                    : (mapY - posY + (1 - stepY) / 2) / rayDirY;
+
+                // Определяем высоту столбца стены
+                int lineHeight = (int)(screenHeight / perpWallDist);
+                int drawStart = Math.Max(-lineHeight / 2 + screenHeight / 2, 0);
+                int drawEnd = Math.Min(lineHeight / 2 + screenHeight / 2, screenHeight - 1);
+
+                // Получаем значение текстуры из карты
+                int texNum = map[mapX, mapY] - 1;
+                if (texNum < 0 || texNum >= wallTextures.Count) continue;
+
+                // Вычисляем позицию текстуры
+                double wallX = side == 0
+                    ? posY + perpWallDist * rayDirY
+                    : posX + perpWallDist * rayDirX;
+                wallX -= Math.Floor(wallX);
+
+                int texWidth = wallTextures[texNum].Texture.Width;
+                int texHeight = wallTextures[texNum].Texture.Height;
+                int texX = (int)(wallX * texWidth);
+                if ((side == 0 && rayDirX > 0) || (side == 1 && rayDirY < 0))
+                    texX = texWidth - texX - 1;
+
+                // Отрисовка текстурированного столбца
+                for (int y = drawStart; y < drawEnd; y++)
+                {
+                    int d = y * 256 - screenHeight * 128 + lineHeight * 128;
+                    int texY = ((d * texHeight) / lineHeight) / 256;
+                    Color color = wallTextures[texNum].Data[texX + texY * texWidth];
+                    _spriteBatch.Draw(pixel, new Rectangle(x, y, 1, 1), color);
+                }
+            }
+
+            _spriteBatch.End();
+        }
+
+        private Dictionary<string, TextureData> _textureCache = new Dictionary<string, TextureData>();
+
+        private TextureData LoadTextureData(string textureName)
+        {
+            if (_textureCache.ContainsKey(textureName))
+            {
+                return _textureCache[textureName];
+            }
+
+            Texture2D texture = Content.Load<Texture2D>(textureName);
+            Color[] data = new Color[texture.Width * texture.Height];
+            texture.GetData(data);
+
+            var textureData = new TextureData { Texture = texture, Data = data };
+            _textureCache[textureName] = textureData;
+
+            return textureData;
+        }
+
+        
+
+    }
+}

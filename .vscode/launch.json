@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "name": "C#: Game",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}\\Game.csproj",
+            "launchConfigurationId": "TargetFramework=;Game"
+        }
+    ]
+}
