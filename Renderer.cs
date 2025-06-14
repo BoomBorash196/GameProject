@@ -23,6 +23,8 @@ namespace GameProject
         private float[] _wallDistances;
         private bool _enableDebugLogging = false; // Флаг для логирования
 
+        private int[,] _currentMap;
+
         public Renderer(SpriteBatch spriteBatch, GraphicsDevice graphicsDevice, List<Game1.TextureData> wallTextures,
                         int screenWidth, int screenHeight, double posX, double posY,
                         double dirX, double dirY, double planeX, double planeY)
@@ -63,7 +65,6 @@ namespace GameProject
 
         public void DrawCeilingAndFloor()
         {
-            // Упрощённая версия: уменьшаем детализацию
             for (int y = 0; y < screenHeight; y += 2) // Пропускаем каждый второй пиксель
             {
                 int p = y - screenHeight / 2;
@@ -81,7 +82,7 @@ namespace GameProject
 
                 for (int x = 0; x < screenWidth; x += 2)
                 {
-                    int texNum = isCeiling ? 2 : 3;
+                    int texNum = isCeiling ? 2 : 3; // номер тектур пола и потолка + 1 к каждому
                     if (texNum < 0 || texNum >= wallTextures.Count)
                         texNum = 0;
 
@@ -93,6 +94,7 @@ namespace GameProject
                     int texWidth = tex.Texture.Width;
                     int texHeight = tex.Texture.Height;
 
+                    // Считаем координаты текстуры
                     int texX = (int)(texWidth * (floorX - Math.Floor(floorX))) % texWidth;
                     int texY = (int)(texHeight * (floorY - Math.Floor(floorY))) % texHeight;
 
@@ -108,9 +110,9 @@ namespace GameProject
                     if (index >= 0 && index < tex.Data.Length)
                     {
                         Color color = tex.Data[index];
+                        //if (color.A == 0) continue;
                         color *= light;
-
-                        // Заполняем 2x2 пикселя для оптимизации
+                        //color.A = 255;
                         for (int dy = 0; dy < 2 && y + dy < screenHeight; dy++)
                         {
                             for (int dx = 0; dx < 2 && x + dx < screenWidth; dx++)
@@ -143,15 +145,17 @@ namespace GameProject
                 int mapX = (int)posX;
                 int mapY = (int)posY;
 
+                // Считаем расстояние до следующих клеток на карте 
                 double sideDistX, sideDistY;
-                double deltaDistX = Math.Abs(rayDirX) < 0.00001 ? 1e30 : Math.Abs(1 / rayDirX);
-                double deltaDistY = Math.Abs(rayDirY) < 0.00001 ? 1e30 : Math.Abs(1 / rayDirY);
+                double deltaDistX = Math.Abs(rayDirX) < 0.00001 ? 1e30 : Math.Abs(1 / rayDirX); // расстояние до клетки X
+                double deltaDistY = Math.Abs(rayDirY) < 0.00001 ? 1e30 : Math.Abs(1 / rayDirY); // расстояние до клетки Y
                 double perpWallDist;
 
                 int stepX, stepY;
                 bool hit = false;
                 int side = 0;
-
+                // DDA
+                // Определяем расстояние до граници Х и У
                 if (rayDirX < 0)
                 {
                     stepX = -1;
@@ -176,11 +180,11 @@ namespace GameProject
 
                 int maxIterations = 100;
                 int iterations = 0;
-
+                
                 while (!hit && iterations < maxIterations)
                 {
                     iterations++;
-
+                    // проверяем куда луч придет раньше
                     if (sideDistX < sideDistY)
                     {
                         sideDistX += deltaDistX;
@@ -194,23 +198,11 @@ namespace GameProject
                         side = 1;
                     }
 
-                    if (mapX < 0 || mapY < 0 || mapX >= map.GetLength(0) || mapY >= map.GetLength(1))
-                    {
-                        if (_enableDebugLogging)
-                            Debug.WriteLine($"Ray out of bounds at column {x}: mapX={mapX}, mapY={mapY}");
-                        break;
-                    }
-
+                    // луч сталкнулся со стеный
                     if (map[mapX, mapY] > 0)
                         hit = true;
                 }
 
-                if (!hit)
-                {
-                    if (_enableDebugLogging)
-                        Debug.WriteLine($"No wall hit at column {x}");
-                    continue;
-                }
 
                 if (side == 0)
                     perpWallDist = (sideDistX - deltaDistX);
@@ -219,11 +211,13 @@ namespace GameProject
 
                 _wallDistances[x] = (float)perpWallDist;
 
+                // Считаем высоту стены на экране
                 int lineHeight = (int)(screenHeight / perpWallDist);
 
                 if (lineHeight < 0) lineHeight = 0;
                 if (lineHeight > screenHeight * 5) lineHeight = screenHeight * 5;
 
+                // Определяем где начинаем и заканчиваем рисовать
                 int drawStart = -lineHeight / 2 + screenHeight / 2;
                 if (drawStart < 0) drawStart = 0;
                 int drawEnd = lineHeight / 2 + screenHeight / 2;
@@ -233,6 +227,7 @@ namespace GameProject
                 if (texNum < 0 || texNum >= wallTextures.Count)
                     texNum = 0;
 
+                // Выбираем тектуру по номеру
                 var tex = wallTextures[texNum];
                 if (tex == null || tex.Data == null || tex.Texture == null)
                     continue;
@@ -244,8 +239,9 @@ namespace GameProject
 
                 int texWidth = tex.Texture.Width;
                 int texHeight = tex.Texture.Height;
-                int texX = (int)(wallX * (double)texWidth);
 
+                int texX = (int)(wallX * (double)texWidth);
+                // Считаем какую честь тектуры ирсовать чтобы стены выглядела ровно
                 if (side == 0 && rayDirX > 0) texX = texWidth - texX - 1;
                 if (side == 1 && rayDirY < 0) texX = texWidth - texX - 1;
 
@@ -255,6 +251,7 @@ namespace GameProject
                 double step = 1.0 * texHeight / lineHeight;
                 double texPos = (drawStart - screenHeight / 2 + lineHeight / 2) * step;
 
+                // Рисуем тектуру писель за пикселем
                 for (int y = drawStart; y < drawEnd; y++)
                 {
                     int texY = (int)texPos & (texHeight - 1);
@@ -268,12 +265,13 @@ namespace GameProject
                         continue;
 
                     Color color = tex.Data[texIndex];
+                    //if (color.B == 0) continue;
 
                     float wallLight = globalLight * (1.0f - (float)(depthDarkness * perpWallDist / 8.0));
                     wallLight = MathHelper.Clamp(wallLight, 0.3f, 1.0f);
 
                     color *= wallLight;
-
+                    //color.A = 255;
                     int bufferIndex = x + y * screenWidth;
                     if (bufferIndex >= 0 && bufferIndex < colorBuffer.Length)
                     {
@@ -385,7 +383,6 @@ namespace GameProject
 
         public void UpdateEnemies(List<Enemy> enemies, Vector2 playerPos, GameTime gameTime)
         {
-            int[,] map = Map.GiveMap();
             foreach (var enemy in enemies.ToList())
             {
                 if (!enemy.IsActive || enemy == null) continue;
@@ -394,7 +391,7 @@ namespace GameProject
                 if (enemy.AnimationFrames == null || enemy.AnimationFrames.Length == 0)
                 {
                     Debug.WriteLine($"Enemy at ({enemy.Position}) has no animation frames!");
-                    enemies.Remove(enemy); // Удаляем проблемного врага
+                    enemies.Remove(enemy); // Удаляем  врага
                     continue;
                 }
 
@@ -412,19 +409,31 @@ namespace GameProject
                     Vector2 newPos = enemy.Position + direction * enemy.Speed;
 
                     // Проверка коллизий с картой
-                    if (IsValidPosition(newPos, map))
+                    if (IsValidPosition(newPos))
                     {
                         enemy.Position = newPos;
                     }
                 }
             }
         }
-        private bool IsValidPosition(Vector2 position, int[,] map)
+
+        private bool IsValidPosition(Vector2 position)
         {
             int x = (int)position.X;
             int y = (int)position.Y;
-            return x >= 0 && y >= 0 && x < map.GetLength(0) && y < map.GetLength(1) && map[x, y] == 0;
+            return x >= 0 && y >= 0 && x < _currentMap.GetLength(0) && y < _currentMap.GetLength(1) && _currentMap[x, y] == 0;
         }
+
+        public void SetCurrentMap(int[,] map)
+        {
+            _currentMap = map;
+        }
+
+        public void UpdateWallTextures(List<Game1.TextureData> newTextures)
+        {
+            wallTextures = newTextures;
+        }
+
         public void RenderScene(SpriteBatch spriteBatch, int[,] map, List<Enemy> enemies, Vector2 playerPos, float playerRot)
         {
             Array.Fill(colorBuffer, Color.Black);

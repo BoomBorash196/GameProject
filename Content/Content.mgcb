@@ -363,6 +363,18 @@
 /processorParam:TextureFormat=Color
 /build:world_textures/greenlight.png
 
+#begin world_textures/greenlight2.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:world_textures/greenlight2.png
+
 #begin world_textures/greystone.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -434,4 +446,16 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:world_textures/wood.png
+
+#begin world_textures/YouWin.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:world_textures/YouWin.png
 

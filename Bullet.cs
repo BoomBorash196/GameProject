@@ -12,7 +12,7 @@ namespace GameProject
         private float _positionZ;
         private Vector2 _directionXY;
         private float _directionZ;
-        private float _speed = 0.1f;
+        private float _speed = 1f;
         private bool _isActive = true;
         private int _screenWidth;
         private int _screenHeight;
@@ -25,11 +25,13 @@ namespace GameProject
         private double _initialPlaneX, _initialPlaneY;
         private float[] _wallDistances;
         private List<Enemy> _enemies;
-        private bool _enableDebugLogging = false; 
+        private bool _enableDebugLogging = false;
+        private int[,] _currentMap;
+        private static Texture2D _fallbackTexture;
 
         public Bullet(Texture2D texture, Vector2 startPosition3D, float startPositionZ, Vector2 directionXY, float directionZ,
                       int screenWidth, int screenHeight, double posX, double posY, double dirX, double dirY, double planeX, double planeY,
-                      float[] wallDistances, List<Enemy> enemies)
+                      float[] wallDistances, List<Enemy> enemies, int[,] currentMap, GraphicsDevice graphicsDevice)
         {
             _texture = texture;
             _position3D = startPosition3D;
@@ -40,6 +42,7 @@ namespace GameProject
             _screenHeight = screenHeight;
             _wallDistances = wallDistances;
             _enemies = enemies;
+            _currentMap = currentMap;
 
             _initialPosX = posX;
             _initialPosY = posY;
@@ -53,6 +56,17 @@ namespace GameProject
 
             _scale = 1.0f;
             _distance = 0f;
+
+            if (_fallbackTexture == null)
+            {
+                _fallbackTexture = new Texture2D(graphicsDevice, 8, 8);
+                Color[] data = new Color[8 * 8];
+                for (int i = 0; i < data.Length; i++)
+                    data[i] = Color.Red;
+                _fallbackTexture.SetData(data);
+            }
+
+            _texture = texture ?? _fallbackTexture;
         }
 
         public bool IsActive => _isActive;
@@ -77,10 +91,9 @@ namespace GameProject
 
             int mapX = (int)_position3D.X;
             int mapY = (int)_position3D.Y;
-            int[,] map = Map.GiveMap();
-            if (mapX >= 0 && mapX < map.GetLength(0) && mapY >= 0 && mapY < map.GetLength(1))
+            if (mapX >= 0 && mapX < _currentMap.GetLength(0) && mapY >= 0 && mapY < _currentMap.GetLength(1))
             {
-                if (map[mapX, mapY] > 0)
+                if (_currentMap[mapX, mapY] > 0)
                 {
                     _isActive = false;
                     return;
@@ -88,7 +101,6 @@ namespace GameProject
             }
             else
             {
-                
                 _isActive = false;
                 return;
             }
@@ -98,12 +110,12 @@ namespace GameProject
                 if (!enemy.IsActive) continue;
 
                 float distSquared = Vector2.DistanceSquared(_position3D, enemy.Position);
-                float hitRadius = Enemy.SpriteWidth * 0.75f; // Увеличен радиус
+                float hitRadius = Enemy.SpriteWidth * 1f;
                 if (distSquared <= hitRadius * hitRadius)
                 {
                     enemy.Health -= 50;
                     enemy.HitTimer = 0.2f;
-                   _isActive = false;
+                    _isActive = false;
                     if (enemy.Health <= 0)
                     {
                         enemy.IsActive = false;
@@ -117,7 +129,7 @@ namespace GameProject
 
         public void Draw(SpriteBatch spriteBatch)
         {
-            if (!_isActive) return;
+            if (!_isActive || _texture == null || _texture.IsDisposed) return;
 
             Vector2 screenPos = ProjectToScreen();
 
@@ -138,7 +150,7 @@ namespace GameProject
 
             Vector2 origin = new Vector2(_texture.Width / 2, _texture.Height / 2);
             spriteBatch.Draw(_texture, screenPos, null, Color.White, 0f, origin, _scale, SpriteEffects.None, 0f);
-            }
+        }
 
         private Vector2 ProjectToScreen()
         {

@@ -23,17 +23,17 @@ namespace GameProject
         private float _typingTimer = 0f;
         private KeyboardState _prevKeyboardState;
         private Texture2D _backgroundTexture;
-        private int _volume = 50;
-        private bool _isRadioOn = true;
+        private int _volume = 30;
+        public bool _isRadioOn = true;
         private static int _currentStation = 0;
-        //private string _currentStation = _stationItems[0];
         private static string[] _stationItems = { 
             "Bloody Bathroom FM",                        
             "Witch Broom FM",
+            "133.7 FM",
         };
         private int _totalStations = _stationItems.Length;
-        private SoundEffect[] _stationTracks; // Используем SoundEffect вместо AudioClip
-        private SoundEffectInstance _currentTrack; // Для управления воспроизведением
+        private SoundEffect[] _stationTracks;
+        private SoundEffectInstance _currentTrack; 
         private Switcher _menuSwitcher;
 
         public Radio(SpriteFont font, Texture2D backgroundTexture, SoundEffect[] stationTracks)
@@ -113,7 +113,7 @@ namespace GameProject
                 _currentTrack.Volume = _volume / 100f;
         }
 
-        private void PlayCurrentStation()
+        public void PlayCurrentStation()
         {
             StopRadio();
             if (!_isRadioOn) return;
@@ -124,7 +124,7 @@ namespace GameProject
             _currentTrack.Play();
         }
 
-        private void StopRadio()
+        public void StopRadio()
         {
             _currentTrack?.Stop();
             _currentTrack?.Dispose();
@@ -149,7 +149,6 @@ namespace GameProject
             else
                 graphicsDevice.Clear(Color.DarkSlateBlue);
 
-            // Пункты меню
             float startY = graphicsDevice.Viewport.Height * 0.3f;
             for (int i = 0; i < _radioItems.Length; i++)
             {

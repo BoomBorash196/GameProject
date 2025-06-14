@@ -71,7 +71,6 @@ public class SettingsMenu
     {
         spriteBatch.Begin();
 
-        // Отрисовка фона
         if (_backgroundTexture != null)
         {
             spriteBatch.Draw(_backgroundTexture, new Rectangle(0, 0, graphicsDevice.Viewport.Width, graphicsDevice.Viewport.Height), Color.White);
@@ -84,7 +83,6 @@ public class SettingsMenu
         float menuHeight = _settingsItems.Length * 50;
         float startY = (graphicsDevice.Viewport.Height - menuHeight) / 2;
 
-        // Отрисовка пунктов меню
         for (int i = 0; i < _settingsItems.Length; i++)
         {
             string menuItem = _settingsItems[i].Substring(0, _typingProgress[i]);
@@ -95,11 +93,9 @@ public class SettingsMenu
 
             float scale = 1f; 
 
-            // Отрисовка тени
             Vector2 shadowOffset = new Vector2(2, 2);
             spriteBatch.DrawString(_font, menuItem, new Vector2(x + shadowOffset.X, y + shadowOffset.Y), Color.Black * 0.5f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
 
-            // Отрисовка основного текста
             spriteBatch.DrawString(_font, menuItem, new Vector2(x, y), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
 
