@@ -17,7 +17,7 @@ namespace GameProject
         private LevelManager _levelManager;
         private int[,] map;
 
-        public double posX = 1.5, posY = 1.5;
+        private double posX = 1.5, posY = 1.5;
         private double dirX = -1.0, dirY = 0.0;
         private double planeX = 0.0, planeY = 0.66;
 
@@ -40,31 +40,20 @@ namespace GameProject
         public enum GameState
         {
             MainMenu,
-            Intro,
             Playing,
             Settings,
             SoundSettings,
             ControlsSettings,
             Radio,
-            Exit,
-            GameOver
+            Exit
         }
         public static GameState CurrentGameState = GameState.MainMenu;
-        public static GameState _prevGameState = GameState.MainMenu;
-
-        private int[,] _map;
-        public int[,] Map 
-        { 
-            get => _map;
-            set => _map = value;
-        }
 
         private MainMenu _mainMenu;
         private SpriteFont _font;
         private SettingsMenu _settings;
         private SoundMenu _soundMenu;
         private ControlsMenu _controlsMenu;
-        private IntroScreen _introScreen;
 
         private Texture2D _backgroundTexture;
         private float[] _wallDistances;
@@ -76,9 +65,9 @@ namespace GameProject
         private SoundEffectInstance _backgroundMusicInstance;
 
         private Renderer _renderer;
-        private GraphicsManager _graphicsManager;
 
         private KeyboardState _prevKeyboardState;
+        public static GameState _prevGameState = GameState.MainMenu;
 
         private Shotgun _shotgun;
         private List<Texture2D> _shotgunFrames;
@@ -91,23 +80,16 @@ namespace GameProject
         private Minimap _minimap;
 
         private List<Enemy> _enemies;
-       
-        private GameLogic _gameLogic;
-        private GameOverScreen _gameOverScreen;
-
-        public int playerHealth = 100;
-        private HUD _hud;
-
-        private bool _escapePressed = false;
-        private float _escapeDelay = 0f;
-        private const float ESCAPE_DELAY_TIME = 0.5f;
+        private float _spawnTimer = 0f;
+        private float _spawnInterval = 10f; // Спавн каждые 10 секунд
+        private int _maxEnemies = 2;
 
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = false;
-            _graphics.IsFullScreen = true;
+            _graphics.IsFullScreen = false;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0);
             _levelManager = new LevelManager();
         }
@@ -128,12 +110,47 @@ namespace GameProject
 
             _graphics.ApplyChanges();
 
+            // Initialize player position from current level
             var currentLevel = _levelManager.GetCurrentLevel();
             posX = currentLevel.PlayerSpawnPoint.X;
             posY = currentLevel.PlayerSpawnPoint.Y;
             map = currentLevel.Map;
 
             base.Initialize();
+        }
+
+        private void SpawnEnemies(int enemyCount)
+        {
+            var currentLevel = _levelManager.GetCurrentLevel();
+            Texture2D[] enemyFrames = new Texture2D[6];
+            try
+            {
+                enemyFrames[0] = Content.Load<Texture2D>("enemies/bigBoy/walk (1)");
+                enemyFrames[1] = Content.Load<Texture2D>("enemies/bigBoy/walk (2)");
+                enemyFrames[2] = Content.Load<Texture2D>("enemies/bigBoy/walk (3)");
+                enemyFrames[3] = Content.Load<Texture2D>("enemies/bigBoy/walk (4)");
+                enemyFrames[4] = Content.Load<Texture2D>("enemies/bigBoy/walk (5)");
+                enemyFrames[5] = Content.Load<Texture2D>("enemies/bigBoy/walk (6)");
+            }
+            catch (Exception ex)
+            {
+                enemyFrames = new Texture2D[] { pixel };
+                Debug.WriteLine("Ошибка загрузки: " + ex.Message);
+            }
+
+            foreach (var spawnPoint in currentLevel.EnemySpawnPoints)
+            {
+                _enemies.Add(new Enemy
+                {
+                    Position = spawnPoint,
+                    AnimationFrames = enemyFrames,
+                    CurrentFrame = 0,
+                    FrameTime = 0.1f,
+                    Speed = 0.01f,
+                    Health = 100,
+                    Size = new Vector2(64, 64)
+                });
+            }
         }
 
         protected override void LoadContent()
@@ -144,7 +161,7 @@ namespace GameProject
                 Content.Load<SoundEffect>("Radio/ashes"),
                 Content.Load<SoundEffect>("Radio/Shikami")
             };
-            _backgroundTexture = Content.Load<Texture2D>("backgrounds/bg3-back");
+            _backgroundTexture = Content.Load<Texture2D>("backgrounds/wolfenstein");
 
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
@@ -160,30 +177,10 @@ namespace GameProject
             _soundMenu = new SoundMenu(_font, _backgroundTexture, _backgroundMusicInstance);
             _controlsMenu = new ControlsMenu(_font, _backgroundTexture);
             _radioMenu = new Radio(_font, _backgroundTexture, _radioTracks);
-            _introScreen = new IntroScreen(_font, _backgroundTexture, 
-                "В 2025 году мир погрузился в хаос.\n\n" +
-                "Города опустели, технологии вышли из-под контроля.\n" +
-                "Человечество оказалось на грани выживания.\n\n" +
-                "Вы сражаетесь в подземных катакомбах\n" +
-                "Ваша миссия - выбраться живым.\n" +
-                "Следуйте за фиолетовыми орлами.\n" +
-                "Но будьте осторожны - враг вездесущ и опасен.\n\n" +
-                "В вашем распоряжении только дробовик и ваша смекалка.\n" +
-                "Используйте их с умом, и возможно, вы сможете спастись.\n\n" +
-                "Нажмите SPACE для продолжения...");
 
             pixel = new Texture2D(GraphicsDevice, 1, 1);
             pixel.SetData(new[] { Color.White });
-            var levels = new List<int[,]>();
-            for (int i = 1; i <= 10; i++)
-            {
-                var level = _levelManager.GetLevel(i);
-                if (level != null)
-                {
-                    levels.Add(level.Map);
-                }
-            }
-            _minimap = new Minimap(pixel, levels);
+
             _shotgunFrames = new List<Texture2D>
             {
                 Content.Load<Texture2D>("weapons/shotgun"),
@@ -201,56 +198,34 @@ namespace GameProject
             };
             _shotgunSound = Content.Load<SoundEffect>("weapons/sounds/shotgun_sound");
 
+            //_minimap = new Minimap(pixel, map);
+
             wallTextures = new List<TextureData>
             {
                 LoadTextureData("world_textures/redbrick"), //1
                 LoadTextureData("world_textures/eagle"), //2
-                LoadTextureData("world_textures/mossy"), //3 лампочки
-                LoadTextureData("world_textures/wood"), //4 
+                LoadTextureData("world_textures/greenlight"), //3
+                LoadTextureData("world_textures/wood"), //4
                 LoadTextureData("world_textures/green"), //5
                 LoadTextureData("world_textures/mossy"), //6
-                LoadTextureData("world_textures/bluestone"), //7
-                LoadTextureData("world_textures/barrel", true), //8 не используем
-                LoadTextureData("world_textures/pillar", true), //9 не используем
-                LoadTextureData("world_textures/colorstone"), //10
-                LoadTextureData("world_textures/purplestone"), //11
-                LoadTextureData("world_textures/greystone"), //12
-                LoadTextureData("world_textures/YouWin"), //13
+                LoadTextureData("world_textures/mossy"), //7
             };
 
-            _renderer = new Renderer(_spriteBatch, GraphicsDevice, wallTextures,
-                screenWidth, screenHeight, posX, posY, dirX, dirY, planeX, planeY);
-            _renderer.SetCurrentMap(map);
-
             _enemies = new List<Enemy>();
-            _gameLogic = new GameLogic(Content, pixel, _levelManager, _enemies, _renderer, this);
+            SpawnEnemies(1); // Начальный спавн врагов
 
             _shotgun = new Shotgun(_shotgunFrames, _bulletTexture,
                                    _muzzleFlashTextures, _shotgunSound,
                                    GraphicsDevice, screenWidth,
                                    screenHeight, _wallDistances, _enemies, map);
 
-            _graphicsManager = new GraphicsManager(
-                _spriteBatch, 
-                GraphicsDevice, 
-                _renderer, 
-                pixel, 
-                screenWidth, 
-                screenHeight,
-                _mainMenu,
-                _settings,
-                _soundMenu,
-                _controlsMenu,
-                _radioMenu,
-                _shotgun,
-                _minimap,
-                _introScreen);
+            _renderer = new Renderer(_spriteBatch, GraphicsDevice, wallTextures, screenWidth, screenHeight, posX, posY, dirX, dirY, planeX, planeY);
+            _renderer.SetCurrentMap(map);
 
-            _hud = new HUD(_font, pixel, screenWidth, screenHeight);
-            _gameOverScreen = new GameOverScreen(_font, _backgroundTexture);
+
         }
 
-        private TextureData LoadTextureData(string texturePath, bool makeTransparent = false)
+        private TextureData LoadTextureData(string texturePath)
         {
             if (_textureCache.ContainsKey(texturePath))
             {
@@ -259,40 +234,21 @@ namespace GameProject
 
             try
             {
-                Texture2D originalTexture = Content.Load<Texture2D>(texturePath);
-                Color[] data = new Color[originalTexture.Width * originalTexture.Height];
-                originalTexture.GetData(data);
+                Texture2D texture = Content.Load<Texture2D>(texturePath);
+                Color[] data = new Color[texture.Width * texture.Height];
+                texture.GetData(data);
 
-
-                Texture2D processedTexture = new Texture2D(GraphicsDevice,
-                                                         originalTexture.Width,
-                                                         originalTexture.Height);
-                processedTexture.SetData(data);
-
-                var textureData = new TextureData
-                {
-                    Texture = processedTexture,
-                    Data = data
-                };
-
+                var textureData = new TextureData { Texture = texture, Data = data };
                 _textureCache[texturePath] = textureData;
+
                 return textureData;
             }
             catch (ContentLoadException ex)
             {
-
-                Texture2D fallback = new Texture2D(GraphicsDevice, 1, 1);
-                fallback.SetData(new[] { Color.White });
-
-                return new TextureData
-                {
-                    Texture = fallback,
-                    Data = new[] { Color.White }
-                };
+                Debug.WriteLine($"Ошибка загрузки тектуры {texturePath}: {ex.Message}");
+                throw;
             }
         }
-
-       
 
         protected override void Update(GameTime gameTime)
         {
@@ -300,43 +256,24 @@ namespace GameProject
                 Exit();
 
             KeyboardState keyState = Keyboard.GetState();
-            
-            
+
+            _prevKeyboardState = keyState;
+
 
             if (_prevGameState != CurrentGameState)
             {
-                
-                
-                if (_prevGameState == GameState.Intro && CurrentGameState == GameState.Playing)
+                if (_prevGameState == GameState.MainMenu && CurrentGameState == GameState.Playing)
                 {
                     _backgroundMusicInstance?.Stop();
                 }
-                else if (CurrentGameState == GameState.Intro && _prevGameState != GameState.Intro ||
-                    (_prevGameState == GameState.Playing && CurrentGameState == GameState.MainMenu) ||
-                    _prevGameState == GameState.GameOver && CurrentGameState == GameState.MainMenu)
+                else if (CurrentGameState == GameState.MainMenu && _prevGameState != GameState.MainMenu)
                 {
                     _backgroundMusicInstance?.Play();
                 }
 
-                if (_prevGameState == GameState.Intro && CurrentGameState == GameState.Playing)
-                {
-                    _radioMenu?.PlayCurrentStation();
-                }
-                else if (CurrentGameState == GameState.Intro && _prevGameState != GameState.Intro || 
-                    (_prevGameState == GameState.Playing && CurrentGameState == GameState.MainMenu) ||
-                    CurrentGameState == GameState.GameOver)
-                {
-                    _radioMenu?.StopRadio();
-                }
-
                 _prevGameState = CurrentGameState;
                 if (CurrentGameState == GameState.MainMenu)
-                {
                     _mainMenu.Reset();
-                    _prevKeyboardState = keyState;
-                }
-                else if (CurrentGameState == GameState.Intro)
-                    _introScreen.Reset();
                 else if (CurrentGameState == GameState.Settings)
                     _settings.Reset();
                 else if (CurrentGameState == GameState.SoundSettings)
@@ -350,14 +287,19 @@ namespace GameProject
                 case GameState.MainMenu:
                     _mainMenu.Update(gameTime);
                     break;
-                case GameState.Intro:
-                    _introScreen.Update(gameTime);
-                    break;
                 case GameState.Playing:
-                    UpdateGame(gameTime);
-                    if (keyState.IsKeyDown(Keys.Escape))
+                    UpdateCamera((float)gameTime.ElapsedGameTime.TotalSeconds);
+                    Vector2 playerPosition = new Vector2((float)posX, (float)posY);
+                    Vector2 mousePosition = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
+                    _renderer.UpdateEnemies(_enemies, playerPosition, gameTime);
+                    _shotgun.Update(gameTime, playerPosition, mousePosition, posX, posY, dirX, dirY, planeX, planeY, _wallDistances, _enemies, map);
+                    //_minimap.Update(playerPosition);
+
+                    _spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (_spawnTimer >= _spawnInterval && _enemies.Count < _maxEnemies)
                     {
-                        CurrentGameState = GameState.MainMenu;
+                        _spawnTimer = 0f;
+                        //SpawnEnemies(1);
                     }
                     break;
                 case GameState.Settings:
@@ -366,31 +308,61 @@ namespace GameProject
                 case GameState.SoundSettings:
                     _soundMenu.Update(gameTime);
                     break;
-                case GameState.ControlsSettings:
-                    _controlsMenu.Update(gameTime);
-                    break;
                 case GameState.Radio:
                     _radioMenu.Update(gameTime);
                     break;
-                case GameState.GameOver:
-                    _gameOverScreen.Update(gameTime);
+                case GameState.ControlsSettings:
+                    _controlsMenu.Update(gameTime);
                     break;
             }
 
-            _prevKeyboardState = keyState;
             base.Update(gameTime);
         }
 
-        private void UpdateGame(GameTime gameTime)
+        protected override void Draw(GameTime gameTime)
         {
-            UpdateCamera((float)gameTime.ElapsedGameTime.TotalSeconds);
-            Vector2 playerPosition = new Vector2((float)posX, (float)posY);
-            Vector2 mousePosition = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
-            _renderer.UpdateEnemies(_enemies, playerPosition, gameTime);
-            _shotgun.Update(gameTime, playerPosition, mousePosition, posX, posY, dirX, dirY, planeX, planeY, _wallDistances, _enemies, map);
-            _gameLogic.Update(gameTime);
-            _minimap.Update(playerPosition, _levelManager.CurrentLevelIndex - 1);
-            _radioMenu.Update(gameTime);
+            GraphicsDevice.Clear(Color.Black);
+
+            switch (CurrentGameState)
+            {
+                case GameState.MainMenu:
+                    _mainMenu.Draw(_spriteBatch, GraphicsDevice);
+                    break;
+                case GameState.Playing:
+                    DrawAll();
+                    _spriteBatch.Begin();
+                    _shotgun.Draw(_spriteBatch);
+                    //_minimap.Draw(_spriteBatch);
+                    DrawCrosshair();
+                    _spriteBatch.End();
+                    break;
+                case GameState.Settings:
+                    _settings.Draw(_spriteBatch, GraphicsDevice);
+                    break;
+                case GameState.SoundSettings:
+                    _soundMenu.Draw(_spriteBatch, GraphicsDevice);
+                    break;
+                case GameState.ControlsSettings:
+                    _controlsMenu.Draw(_spriteBatch, GraphicsDevice);
+                    break;
+                case GameState.Radio:
+                    _radioMenu.Draw(_spriteBatch, GraphicsDevice);
+                    break;
+            }
+
+            base.Draw(gameTime);
+        }
+
+        private void DrawCrosshair()
+        {
+            int centerX = screenWidth / 2;
+            int centerY = screenHeight / 2;
+
+            int crosshairLength = 10;
+            int crosshairThickness = 2;
+
+            _spriteBatch.Draw(pixel, new Rectangle(centerX - crosshairLength, centerY - crosshairThickness / 2, crosshairLength * 2, crosshairThickness), Color.White);
+            _spriteBatch.Draw(pixel, new Rectangle(centerX - crosshairThickness / 2, centerY - crosshairLength, crosshairThickness, crosshairLength * 2), Color.White);
         }
 
         private void UpdateCamera(float deltaTime)
@@ -432,35 +404,14 @@ namespace GameProject
                 newPosX += dirY * moveSpeed;
                 newPosY -= dirX * moveSpeed;
             }
-
             if (Keyboard.GetState().IsKeyDown(Keys.Escape))
             {
-                if (!_escapePressed)
-                {
-                    _escapePressed = true;
-                    _escapeDelay = ESCAPE_DELAY_TIME;
-                }
-            }
-            else
-            {
-                _escapePressed = false;
+                CurrentGameState = GameState.MainMenu;
             }
 
-            if (_escapePressed)
-            {
-                _escapeDelay -= deltaTime;
-                if (_escapeDelay <= 0)
-                {
-                    if (CurrentGameState == GameState.Playing)
-                    {
-                        CurrentGameState = GameState.MainMenu;
-                    }
-                    _escapePressed = false;
-                }
-            }
+            CollisionsBuffer(newPosX, newPosY);
 
-            _gameLogic.CollisionsBuffer(newPosX, newPosY, ref posX, ref posY, map);
-
+            // Check if player reached exit point
             if (_levelManager.IsAtExitPoint(new Vector2((float)posX, (float)posY)))
             {
                 if (_levelManager.TryLoadNextLevel())
@@ -471,55 +422,60 @@ namespace GameProject
                     map = nextLevel.Map;
                     _renderer.SetCurrentMap(map);
                     _enemies.Clear();
-                    _gameLogic.SpawnEnemies(nextLevel.EnemyCount);
+                    SpawnEnemies(nextLevel.EnemyCount);
                 }
             }
 
-            _gameLogic.UpdateRendererData(posX, posY, dirX, dirY, planeX, planeY);
+            UpdateRendererData();
 
             Mouse.SetPosition(screenWidth / 2, screenHeight / 2);
             prevMouseState = Mouse.GetState();
         }
 
-        private Dictionary<string, TextureData> _textureCache = new Dictionary<string, TextureData>();
-
-        protected override void Draw(GameTime gameTime)
+        private void CollisionsBuffer(double newPosX, double newPosY)
         {
-            switch (CurrentGameState)
+            bool collideX = false;
+            bool collideY = false;
+
+            for (double i = -CollisionBuffer; i <= CollisionBuffer; i += CollisionBuffer)
             {
-                case GameState.MainMenu:
-                    _mainMenu.Draw(_spriteBatch, GraphicsDevice);
-                    break;
-                case GameState.Intro:
-                    _introScreen.Draw(_spriteBatch, GraphicsDevice);
-                    break;
-                case GameState.Playing:
-                    GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                    GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-                    GraphicsDevice.Clear(Color.Transparent);
-                    _graphicsManager.Draw(map, _enemies, new Vector2((float)posX, (float)posY), (float)Math.Atan2(dirY, dirX));
-                    _spriteBatch.Begin();
-                    _hud.Draw(_spriteBatch, playerHealth);
-                    _spriteBatch.End();
-                    break;
-                case GameState.Settings:
-                    _settings.Draw(_spriteBatch, GraphicsDevice);
-                    break;
-                case GameState.SoundSettings:
-                    _soundMenu.Draw(_spriteBatch, GraphicsDevice);
-                    break;
-                case GameState.ControlsSettings:
-                    _controlsMenu.Draw(_spriteBatch, GraphicsDevice);
-                    break;
-                case GameState.Radio:
-                    _radioMenu.Draw(_spriteBatch, GraphicsDevice);
-                    break;
-                case GameState.GameOver:
-                    _gameOverScreen.Draw(_spriteBatch, GraphicsDevice);
-                    break;
+                for (double j = -CollisionBuffer; j <= CollisionBuffer; j += CollisionBuffer)
+                {
+                    int checkX = (int)(newPosX + i);
+                    int checkY = (int)(posY + j);
+                    if (checkX >= 0 && checkX < map.GetLength(0) &&
+                        checkY >= 0 && checkY < map.GetLength(1))
+                    {
+                        if (map[checkX, checkY] > 0) collideX = true;
+                    }
+
+                    checkX = (int)(posX + i);
+                    checkY = (int)(newPosY + j);
+                    if (checkX >= 0 && checkX < map.GetLength(0) &&
+                        checkY >= 0 && checkY < map.GetLength(1))
+                    {
+                        if (map[checkX, checkY] > 0) collideY = true;
+                    }
+                }
             }
-            base.Draw(gameTime);
+
+            if (!collideX) posX = newPosX;
+            if (!collideY) posY = newPosY;
         }
+
+        private void UpdateRendererData()
+        {
+            _renderer.UpdateData(posX, posY, dirX, dirY, planeX, planeY);
+        }
+
+        private void DrawAll()
+        {
+            float playerRot = (float)Math.Atan2(dirY, dirX);
+            _renderer.RenderScene(_spriteBatch, map, _enemies, new Vector2((float)posX, (float)posY), playerRot);
+            _wallDistances = _renderer.GetWallDistances();
+        }
+
+        private Dictionary<string, TextureData> _textureCache = new Dictionary<string, TextureData>();
 
         protected override void UnloadContent()
         {

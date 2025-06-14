@@ -29,7 +29,6 @@ namespace GameProject
 
         public void Update(GameTime gameTime, Vector2 playerPosition)
         {
-            // Обновление анимации
             FrameTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (FrameTimer >= FrameTime)
             {
@@ -37,7 +36,6 @@ namespace GameProject
                 CurrentFrame = (CurrentFrame + 1) % AnimationFrames.Length;
             }
 
-            // Движение к игроку
             Vector2 direction = playerPosition - Position;
             if (direction != Vector2.Zero)
             {
@@ -55,9 +53,9 @@ namespace GameProject
                     currentTexture,
                     new Rectangle(
                         (int)Position.X,
-                        (int)Position.Y,
-                        (int)Size.X,
-                        (int)Size.Y),
+                        (int)Position.Y - 10 ,
+                        (int)Size.X + 100,
+                        (int)Size.Y + 100),
                     Color.White);
             }
         }

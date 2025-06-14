@@ -37,10 +37,12 @@ namespace GameProject
         private const int _pelletCount = 1;
         private float[] _wallDistances;
         private List<Enemy> _enemies;
+        private int[,] _currentMap;
+        private GraphicsDevice _graphicsDevice;
 
         public Shotgun(List<Texture2D> shotgunFrames, Texture2D bulletTexture, List<Texture2D> muzzleFlashTextures,
             SoundEffect shotgunSound, GraphicsDevice graphicsDevice,
-            int screenWidth, int screenHeight, float[] wallDistances, List<Enemy> enemies)
+            int screenWidth, int screenHeight, float[] wallDistances, List<Enemy> enemies, int[,] currentMap)
         {
             _shotgunFrames = shotgunFrames;
             _bulletTexture = bulletTexture;
@@ -51,6 +53,8 @@ namespace GameProject
             _screenHeight = screenHeight;
             _wallDistances = wallDistances;
             _enemies = enemies;
+            _currentMap = currentMap;
+            _graphicsDevice = graphicsDevice;
 
             _position = new Vector2(
                 (graphicsDevice.Viewport.Width - _shotgunFrames[0].Width) / 2,
@@ -62,10 +66,11 @@ namespace GameProject
 
         public void Update(GameTime gameTime, Vector2 playerPosition, Vector2 mousePosition,
                           double posX, double posY, double dirX, double dirY, double planeX, double planeY,
-                          float[] wallDistances, List<Enemy> enemies)
+                          float[] wallDistances, List<Enemy> enemies, int[,] currentMap)
         {
             _wallDistances = wallDistances;
             _enemies = enemies;
+            _currentMap = currentMap;
 
             _fireTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
             _animationTimer += (float)gameTime.ElapsedGameTime.TotalSeconds / 2;
@@ -129,7 +134,7 @@ namespace GameProject
                     bulletDirectionXY.Normalize();
 
                     Bullet bullet = new Bullet(_bulletTexture, startPosition3D: bulletStartPosition, startPositionZ: bulletStartZ, directionXY: bulletDirectionXY, directionZ: bulletDirectionZ,
-                                              _screenWidth, _screenHeight, _posX, _posY, _dirX, _dirY, _planeX, _planeY, _wallDistances, _enemies);
+                                              _screenWidth, _screenHeight, _posX, _posY, _dirX, _dirY, _planeX, _planeY, _wallDistances, _enemies, _currentMap, _graphicsDevice);
                     _bullets.Add(bullet);
                 }
             }
